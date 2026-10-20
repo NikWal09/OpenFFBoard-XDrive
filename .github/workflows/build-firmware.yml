@@ -6,6 +6,7 @@ on:
     branches: 
       - master
       - development
+      - mks-xdrive-mini
   pull_request:
     branches:
       - master

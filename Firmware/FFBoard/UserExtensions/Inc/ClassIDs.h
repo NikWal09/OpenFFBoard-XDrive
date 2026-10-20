@@ -81,6 +81,7 @@ enum class ClassType : uint16_t {
 #define CLSID_MOT_SM2		0x8A
 #define CLSID_MOT_RMD1		0x8B
 #define CLSID_MOT_RMD2		0x8C
+#define CLSID_MOT_XDRIVE	0x8D // MKS XDrive Mini onboard FOC
 
 // Internal classes
 #define CLSID_AXIS			0xA01

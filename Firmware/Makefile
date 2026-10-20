@@ -25,7 +25,7 @@ BUILD_DIR = build
 # source
 ######################################
 
-# Choose your board mcu F407VG or F411RE
+# Choose your board mcu F407VG, F411RE or F405RG_XDRIVE (MKS XDrive Mini)
 MCU_TARGET ?= F407VG
 # The directory of mcu target
 TARGET_DIR = Targets/$(MCU_TARGET)
@@ -179,6 +179,9 @@ CXXFLAGS = $(MCU) $(C_DEFS) $(C_INCLUDES) $(OPTCPP) -Wall -fdata-sections -ffunc
 # link script
 ifeq ($(MCU_TARGET),F407VG_DISCO)
 LDSCRIPT = $(TARGET_DIR)/STM32F407VGTX_FLASH.ld
+else ifeq ($(MCU_TARGET),F405RG_XDRIVE)
+# MKS XDrive Mini: F405RG = ten sam krzem co F407 (DEVID 0x413), kompilowany jako STM32F407xx
+LDSCRIPT = $(TARGET_DIR)/STM32F405RGTX_FLASH.ld
 else
 LDSCRIPT = $(TARGET_DIR)/STM32$(MCU_TARGET)TX_FLASH.ld
 endif

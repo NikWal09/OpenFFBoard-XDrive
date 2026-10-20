@@ -62,9 +62,12 @@ struct AxisFlashAddrs
 	uint16_t postprocess1 = ADR_AXIS1_POSTPROCESS1;
 };
 
+#ifndef DEFAULT_DRVTYPE
+#define DEFAULT_DRVTYPE 0 // Targets with an onboard motor driver can preselect it
+#endif
 struct AxisConfig
 {
-	uint8_t drvtype = 0;
+	uint8_t drvtype = DEFAULT_DRVTYPE;
 	uint8_t enctype = 0;
 	//bool invert = false;
 };

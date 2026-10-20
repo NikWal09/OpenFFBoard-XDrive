@@ -13,6 +13,15 @@
 cpp_freertos::MutexStandard flashMutex;
 // Flash helpers
 
+/**
+ * Called around every internal flash program/erase. While the flash is busy the CPU
+ * stalls on code fetches from flash (sector erase can take hundreds of ms), including
+ * interrupts. Drivers that run a control loop on this MCU (MotorXDrive) override these
+ * to put their power stage into a safe state first.
+ */
+__weak void Flash_WriteBegin(){}
+__weak void Flash_WriteEnd(){}
+
 // TODO sometimes on F4 chips when writing HAL_FLASH_ERROR_PGS and HAL_FLASH_ERROR_PGP occur and it is not writing
 
 
@@ -34,16 +43,19 @@ static void Flash_InvalidateDataCache(){
 }
 
 bool Flash_Format(){
+	Flash_WriteBegin();
 	HAL_FLASH_Unlock();
 	bool res = (EE_Format() == HAL_OK);
 	Flash_InvalidateDataCache();
 	HAL_FLASH_Lock();
+	Flash_WriteEnd();
 	return res;
 }
 /**
  * Called after startup
  */
 __weak bool Flash_Init(){
+	Flash_WriteBegin();
 	HAL_FLASH_Unlock();
 	// Clear all the error flags
 	__HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_EOP);
@@ -56,6 +68,7 @@ __weak bool Flash_Init(){
 	bool state = (EE_Init() == EE_OK);
 	Flash_InvalidateDataCache();
 	HAL_FLASH_Lock();
+	Flash_WriteEnd();
 	return state;
 }
 /*
@@ -68,6 +81,7 @@ bool Flash_Write(uint16_t adr,uint16_t dat){
 	uint16_t readRes = EE_ReadVariable(adr, &buf);
 	bool res = false;
 	if(readRes == 1 || (readRes == 0 && buf != dat) ){ // Only write if var updated
+		Flash_WriteBegin();
 		HAL_FLASH_Unlock();
 		__HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_EOP);
 		__HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_OPERR);
@@ -81,6 +95,7 @@ bool Flash_Write(uint16_t adr,uint16_t dat){
 		}
 		Flash_InvalidateDataCache();
 		HAL_FLASH_Lock();
+		Flash_WriteEnd();
 
 	}
 	//flashMutex.Unlock();
@@ -105,6 +120,7 @@ bool Flash_Read(uint16_t adr,uint16_t *buf,bool checkempty){
 bool Flash_ReadWriteDefault(uint16_t adr,uint16_t *buf,uint16_t def){
 	if(EE_ReadVariable(adr, buf) != 0){
 		*buf = def;
+		Flash_WriteBegin();
 		HAL_FLASH_Unlock();
 		// Clear all the error flags
 		__HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_EOP);
@@ -117,6 +133,7 @@ bool Flash_ReadWriteDefault(uint16_t adr,uint16_t *buf,uint16_t def){
 		EE_WriteVariable(adr, def);
 		Flash_InvalidateDataCache();
 		HAL_FLASH_Lock();
+		Flash_WriteEnd();
 		return false;
 	}
 	return true;
@@ -306,11 +323,13 @@ __weak bool OTP_Write(uint16_t adroffset,uint64_t dat){
 	if(curval != 0xffffffffffffffff){
 		return false;
 	}
-	if(HAL_FLASH_Unlock()!=HAL_OK) return false;
+	Flash_WriteBegin();
+	if(HAL_FLASH_Unlock()!=HAL_OK){ Flash_WriteEnd(); return false; }
 	//bool success = HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD, adr, dat) == HAL_OK;
 	bool success = HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, adr, (uint32_t)(dat)) == HAL_OK;
 	success = HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, adr+4, (uint32_t)(dat >> 32)) == HAL_OK && success;
 	HAL_FLASH_Lock();
+	Flash_WriteEnd();
 	return success;
 }
 

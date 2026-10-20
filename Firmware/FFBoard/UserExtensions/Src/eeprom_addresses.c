@@ -184,6 +184,17 @@ const uint16_t VirtAddVarTab[NB_OF_VAR] =
 // SSI
 	ADR_SSI_CONF1,
 	ADR_SSI_OFS,
+// MKS XDrive Mini FOC driver
+	ADR_XDRIVE_POLES, // Motor pole pairs
+	ADR_XDRIVE_CPR, // Encoder counts per revolution
+	ADR_XDRIVE_VLIMIT, // Max phase voltage in mV
+	ADR_XDRIVE_ILIMIT, // Max phase current in mA
+	ADR_XDRIVE_CONF1, // 0 sensordir neg, 1 invert, 2 calibrated, 3 index, 4 current sign neg, 5 swap BC, 6-7 mode
+	ADR_XDRIVE_OFFSET, // Last electrical offset (encoder counts)
+	ADR_XDRIVE_CENTER, // Wheel center relative to encoder index (signed counts)
+	ADR_XDRIVE_RES, // Phase resistance in 0.1 mOhm
+	ADR_XDRIVE_IND, // Phase inductance in uH
+	ADR_XDRIVE_BW, // Current loop bandwidth in rad/s
 // Analog min/max calibrations
 	ADR_LOCALANALOG_MIN_0,
 	ADR_LOCALANALOG_MAX_0,
@@ -384,6 +395,17 @@ const uint16_t exportableFlashAddresses[NB_EXPORTABLE_ADR] =
 // SSI
 	ADR_SSI_CONF1,
 	ADR_SSI_OFS,
+// MKS XDrive Mini FOC driver
+	ADR_XDRIVE_POLES, // Motor pole pairs
+	ADR_XDRIVE_CPR, // Encoder counts per revolution
+	ADR_XDRIVE_VLIMIT, // Max phase voltage in mV
+	ADR_XDRIVE_ILIMIT, // Max phase current in mA
+	ADR_XDRIVE_CONF1, // 0 sensordir neg, 1 invert, 2 calibrated, 3 index, 4 current sign neg, 5 swap BC, 6-7 mode
+//	ADR_XDRIVE_OFFSET, // Last electrical offset (encoder counts)
+	ADR_XDRIVE_CENTER, // Wheel center relative to encoder index (signed counts)
+	ADR_XDRIVE_RES, // Phase resistance in 0.1 mOhm
+	ADR_XDRIVE_IND, // Phase inductance in uH
+	ADR_XDRIVE_BW, // Current loop bandwidth in rad/s
 // Analog min/max calibrations
 	ADR_LOCALANALOG_MIN_0,
 	ADR_LOCALANALOG_MAX_0,

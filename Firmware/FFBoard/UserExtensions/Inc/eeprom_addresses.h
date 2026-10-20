@@ -13,11 +13,11 @@
 
 #include "main.h"
 // Change this to the amount of currently registered variables
-#define NB_OF_VAR 164
+#define NB_OF_VAR 174
 extern const uint16_t VirtAddVarTab[NB_OF_VAR];
 
 // Amount of variables in exportable list
-#define NB_EXPORTABLE_ADR 149
+#define NB_EXPORTABLE_ADR 158
 extern const uint16_t exportableFlashAddresses[NB_EXPORTABLE_ADR];
 
 
@@ -202,6 +202,17 @@ uint16_t EE_ReadVariable(uint16_t VirtAddress, uint16_t* Data) will return 1 if 
 // SSI
 #define ADR_SSI_CONF1 0x413
 #define ADR_SSI_OFS 0x414
+// MKS XDrive Mini FOC driver
+#define ADR_XDRIVE_POLES 0x420 // Motor pole pairs
+#define ADR_XDRIVE_CPR 0x421 // Encoder counts per revolution
+#define ADR_XDRIVE_VLIMIT 0x422 // Max phase voltage in mV
+#define ADR_XDRIVE_ILIMIT 0x423 // Max phase current in mA
+#define ADR_XDRIVE_CONF1 0x424 // 0 sensordir neg, 1 invert, 2 calibrated, 3 index, 4 current sign neg, 5 swap BC, 6-7 mode
+#define ADR_XDRIVE_OFFSET 0x425 // Last electrical offset (encoder counts)
+#define ADR_XDRIVE_CENTER 0x426 // Wheel center relative to encoder index (signed counts)
+#define ADR_XDRIVE_RES 0x427 // Phase resistance in 0.1 mOhm
+#define ADR_XDRIVE_IND 0x428 // Phase inductance in uH
+#define ADR_XDRIVE_BW 0x429 // Current loop bandwidth in rad/s
 // Analog min/max calibrations
 #define ADR_LOCALANALOG_MIN_0 0x500
 #define ADR_LOCALANALOG_MAX_0 0x501

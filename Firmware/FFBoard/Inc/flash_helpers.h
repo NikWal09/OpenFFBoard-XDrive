@@ -31,6 +31,8 @@ bool Flash_Read(uint16_t adr,uint16_t *buf,bool checkempty = true); // returns t
 bool Flash_ReadWriteDefault(uint16_t adr,uint16_t *buf,uint16_t def); // returns and writes def if variable is missing
 void Flash_Dump(std::vector<std::tuple<uint16_t,uint16_t>> *result,bool includeAll = false);
 bool Flash_Format();
+void Flash_WriteBegin(); // weak hooks around internal flash writes, see flash_helpers.cpp
+void Flash_WriteEnd();
 
 bool OTP_Write(uint16_t adroffset,uint64_t dat);
 bool OTP_Read(uint16_t adroffset,uint64_t* dat);

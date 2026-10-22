@@ -33,7 +33,11 @@ jobs:
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v4
-      
+
+      # The axis only offers drivers from Axis::axis1_drivers - MotorXDrive must be listed there
+      - name: Check MotorXDrive is selectable on axis 1
+        run: awk '/axis1_drivers =/,/^};/' Firmware/FFBoard/Src/Axis.cpp | grep -q 'add_class<MotorXDrive,MotorDriver>(13)'
+
       - {uses: ./.github/actions/build-firmware, with: {target: '${{ matrix.target }}', path: 'Output'}}
 
       - uses: actions/upload-artifact@v4

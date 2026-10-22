@@ -6,6 +6,7 @@
  */
 
 #include "Axis.h"
+#include "MotorXDrive.h"
 #include "voltagesense.h"
 #include "TMC4671.h"
 #include "MotorPWM.h"
@@ -52,6 +53,9 @@ const std::vector<class_entry<MotorDriver>> Axis::axis1_drivers =
 #endif
 #ifdef RMDCAN
 	add_class<RmdMotorCAN1,MotorDriver>(11),
+#endif
+#ifdef XDRIVEDRIVER
+	add_class<MotorXDrive,MotorDriver>(13), // MKS XDrive Mini onboard FOC (only one motor)
 #endif
 };
 
@@ -178,7 +182,8 @@ void Axis::restoreFlash(){
 #ifdef FORCE_DEFAULT_DRVTYPE
 	// Boards with a single onboard motor driver: "None" or an unknown id (e.g. left over in the
 	// emulated EEPROM from another firmware) falls back to the onboard driver
-	if(this->conf.drvtype == 0 || !drv_chooser.isValidClassId(this->conf.drvtype)){
+	if((this->conf.drvtype == 0 || !drv_chooser.isValidClassId(this->conf.drvtype))
+			&& drv_chooser.isValidClassId(DEFAULT_DRVTYPE)){
 		this->conf.drvtype = DEFAULT_DRVTYPE;
 	}
 #endif

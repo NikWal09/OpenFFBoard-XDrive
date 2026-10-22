@@ -9,7 +9,7 @@
   *        APB2 84 MHz (timers 168 MHz).
   *
   * TIM1  - 3 phase PWM, 20 kHz center aligned, complementary outputs + dead time.
-  *         CC4 triggers the injected current conversions of ADC2/ADC3.
+  *         TRGO (OC4REF) triggers the injected current conversions of ADC2/ADC3.
   * TIM2  - brake resistor half bridge (CH3 = AUX_L PB10, CH4 = AUX_H PB11), 20 kHz center aligned.
   * TIM3  - MT6701 ABZ encoder (PB4/PB5).
   * TIM4  - 10 kHz trigger for ADC1 (bus voltage, temperature, vrefint) via DMA.
@@ -180,7 +180,7 @@ static void MX_ADC1_Init(void)
 }
 
 /*
- * ADC2/ADC3: one injected channel each, triggered together by TIM1 CC4 near the top
+ * ADC2/ADC3: one injected channel each, triggered together by TIM1 TRGO = OC4REF near the top
  * of the center aligned PWM (low side FETs on -> shunt current valid).
  * ADC2 = PC1 (IN11, DRV SO2, phase B), ADC3 = PC0 (IN10, DRV SO1, phase C).
  * Which ADC sees which phase is verified at runtime by the calibration of MotorXDrive.
@@ -211,7 +211,7 @@ static void MX_ADC_Current_Init(ADC_HandleTypeDef* hadc, ADC_TypeDef* instance, 
   sConfigInjected.InjectedNbrOfConversion = 1;
   sConfigInjected.InjectedSamplingTime = ADC_SAMPLETIME_15CYCLES;
   sConfigInjected.ExternalTrigInjecConvEdge = ADC_EXTERNALTRIGINJECCONVEDGE_RISING;
-  sConfigInjected.ExternalTrigInjecConv = ADC_EXTERNALTRIGINJECCONV_T1_CC4;
+  sConfigInjected.ExternalTrigInjecConv = ADC_EXTERNALTRIGINJECCONV_T1_TRGO;
   sConfigInjected.AutoInjectedConv = DISABLE;
   sConfigInjected.InjectedDiscontinuousConvMode = DISABLE;
   sConfigInjected.InjectedOffset = 0;
@@ -267,7 +267,8 @@ static void MX_SPI3_Init(void)
 /*
  * TIM1: 168 MHz, center aligned, ARR 4200 -> 20 kHz PWM.
  * Outputs stay disabled (MOE=0, idle low = all FETs off) until MotorXDrive enables them.
- * CH4 (no pin) only generates the ADC trigger.
+ * CH4 (no pin) only generates the ADC trigger: PWM2, CCR4 = ARR-1 -> OC4REF (TRGO)
+ * rises once per period just before the counter peak, when the low side FETs conduct.
  */
 static void MX_TIM1_Init(void)
 {
@@ -296,7 +297,7 @@ static void MX_TIM1_Init(void)
   {
     Error_Handler();
   }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_OC4REF; // ADC2/3 injected trigger (see CH4)
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim1, &sMasterConfig) != HAL_OK)
   {

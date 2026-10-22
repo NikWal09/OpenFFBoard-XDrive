@@ -16,6 +16,8 @@ extern TIM_HandleTypeDef htim7;
  * Current control loop of MotorXDrive (ADC2/ADC3 injected end of conversion).
  * Weak default only clears the flags so the target also links without the driver.
  */
+__weak void XDrive_Tim1Update(void){}
+
 __weak void XDrive_AdcIsr(void){
 	ADC2->SR &= ~ADC_SR_JEOC;
 	ADC3->SR &= ~ADC_SR_JEOC;
@@ -96,6 +98,15 @@ void ADC_IRQHandler(void)
     ADC1->SR = ~ADC_SR_OVR;
     ADC1->CR1 &= ~ADC_CR1_OVRIE;
     adc1Overrun = 1;
+  }
+}
+
+/* TIM1 update: only used by the MotorXDrive software ADC trigger fallback */
+void TIM1_UP_TIM10_IRQHandler(void)
+{
+  if(TIM1->SR & TIM_SR_UIF){
+    TIM1->SR = ~TIM_SR_UIF;
+    XDrive_Tim1Update();
   }
 }
 

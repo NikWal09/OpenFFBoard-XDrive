@@ -63,15 +63,17 @@ namespace XDriveError {
 	constexpr uint32_t notCalibrated   = 1 << 9;  // not latched
 	constexpr uint32_t overcurrent     = 1 << 10; // software current limit exceeded
 	constexpr uint32_t testAborted     = 1 << 11; // self test lost the target position
+	constexpr uint32_t noCurrentIsr    = 1 << 12; // no current sampling interrupts (ADC trigger)
 	constexpr uint32_t latched = drvFault | drvSpi | adcOffset | overvoltage | brakeTimeout
-			| calNoCurrent | calCprPoles | calResistance | overcurrent | testAborted;
+			| calNoCurrent | calCprPoles | calResistance | overcurrent | testAborted | noCurrentIsr;
 }
 
 class MotorXDrive : public MotorDriver, public Encoder, public PersistentStorage, public CommandHandler,
 		public ExtiHandler, public cpp_freertos::Thread {
 	enum class XDrive_commands : uint32_t {
 		poles, cpr, vlimit, ilimit, sensorDirection, invert, offset, cal, test, mode, index,
-		state, errors, vbus, iq, res, ind, bw, drvstatus, brake, center, indexfound, calratio
+		state, errors, vbus, iq, res, ind, bw, drvstatus, brake, center, indexfound, calratio,
+		isrcount, trigger, dbg
 	};
 public:
 	MotorXDrive();
@@ -110,6 +112,9 @@ public:
 	void Run() override;
 
 	void isr(); // 20 kHz current loop, called from the ADC interrupt
+	void enableSoftTrigger(); // fallback: start the current conversions from the TIM1 update interrupt
+	volatile uint32_t isrCount = 0;
+	volatile bool softTrigger = false;
 	static MotorXDrive* instance;
 
 private:
@@ -165,6 +170,7 @@ private:
 	volatile uint32_t reportedErrors = 0;
 	volatile bool enabled = false;
 	volatile bool gateReady = false; // DRV8301 configured for the current power cycle
+	uint32_t adcCalWatch = 0, adcCalIsrStart = 0; // watchdog for the current sampling interrupt
 	volatile bool estop = false;
 	volatile bool aligned = false;
 	volatile bool requestCal = false;

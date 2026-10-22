@@ -90,6 +90,28 @@ void Flash_WriteEnd(){
 }
 
 // ---- ISR glue -------------------------------------------------------------------------
+/*
+ * Fallback trigger (see enableSoftTrigger): TIM1 update interrupt. At the update after the
+ * counter peak (counting down) the low side FETs conduct: start both current conversions.
+ */
+extern "C" void XDrive_Tim1Update(void){
+	if(MotorXDrive::instance && MotorXDrive::instance->softTrigger && (TIM1->CR1 & TIM_CR1_DIR)){
+		ADC2->CR2 |= ADC_CR2_JSWSTART;
+		ADC3->CR2 |= ADC_CR2_JSWSTART;
+	}
+}
+
+void MotorXDrive::enableSoftTrigger(){
+	ADC2->CR2 &= ~ADC_CR2_JEXTEN; // software start only works without an external trigger
+	ADC3->CR2 &= ~ADC_CR2_JEXTEN;
+	TIM1->RCR = 0;                // update event at both the peak and the valley
+	softTrigger = true;
+	TIM1->SR = ~TIM_SR_UIF;
+	TIM1->DIER |= TIM_DIER_UIE;
+	HAL_NVIC_SetPriority(TIM1_UP_TIM10_IRQn, 1, 0);
+	HAL_NVIC_EnableIRQ(TIM1_UP_TIM10_IRQn);
+}
+
 extern "C" void XDrive_AdcIsr(void){
 	if(MotorXDrive::instance){
 		MotorXDrive::instance->isr();
@@ -155,6 +177,9 @@ void MotorXDrive::registerCommands(){
 	registerCommand("center", XDrive_commands::center, "Center relative to index (counts)", CMDFLAG_GET);
 	registerCommand("indexfound", XDrive_commands::indexfound, "Encoder index seen since power up", CMDFLAG_GET);
 	registerCommand("calratio", XDrive_commands::calratio, "Measured/expected encoder counts in calibration (x1000)", CMDFLAG_GET);
+	registerCommand("isrcount", XDrive_commands::isrcount, "Current loop interrupts since power up", CMDFLAG_GET);
+	registerCommand("trigger", XDrive_commands::trigger, "ADC trigger: 0 TIM1 TRGO, 1 software fallback", CMDFLAG_GET);
+	registerCommand("dbg", XDrive_commands::dbg, "Registers: TIM1 CR1 CNT CCER BDTR, ADC2 CR2 SR, ADC3 CR2", CMDFLAG_GET);
 }
 
 // ---- flash ------------------------------------------------------------------------------
@@ -388,6 +413,7 @@ void MotorXDrive::enterFault(uint32_t err){
 
 // ---- 20 kHz control loop ---------------------------------------------------------------
 void MotorXDrive::isr(){
+	isrCount = isrCount + 1;
 	int32_t adcB = ADC2->JDR1; // PC1, DRV8301 SO2
 	int32_t adcC = ADC3->JDR1; // PC0, DRV8301 SO1
 	ADC2->SR = ~ADC_SR_JEOC;
@@ -787,6 +813,9 @@ void MotorXDrive::reportErrors(){
 		if(newErr & (XDriveError::calNoCurrent | XDriveError::calCprPoles | XDriveError::calResistance)){
 			ErrorHandler::addError(Error(ErrorCode::encoderAlignmentFailed, ErrorType::critical, "XDrive calibration failed"));
 		}
+		if(newErr & XDriveError::noCurrentIsr){
+			ErrorHandler::addError(Error(ErrorCode::adcCalibrationError, ErrorType::critical, "XDrive no current sampling interrupt"));
+		}
 		if(newErr & (XDriveError::drvFault | XDriveError::drvSpi | XDriveError::overcurrent | XDriveError::testAborted)){
 			ErrorHandler::addError(Error(ErrorCode::systemError, ErrorType::critical, "XDrive driver fault"));
 		}
@@ -830,6 +859,23 @@ void MotorXDrive::Run(){
 		}
 
 		XDriveState s = state;
+		// Current sampling must run at 20 kHz. If the ADC trigger from TIM1 does not arrive,
+		// switch to the software trigger once, then give up with an error.
+		if(s == XDriveState::AdcCal){
+			if(!adcCalWatch){
+				adcCalWatch = HAL_GetTick();
+				adcCalIsrStart = isrCount;
+			}else if(HAL_GetTick() - adcCalWatch > 1000 && isrCount - adcCalIsrStart < 1000){
+				if(!softTrigger){
+					enableSoftTrigger();
+					adcCalWatch = 0;
+				}else{
+					enterFault(XDriveError::noCurrentIsr);
+				}
+			}
+		}else{
+			adcCalWatch = 0;
+		}
 		if(requestCal && (s == XDriveState::Idle || s == XDriveState::Running)){
 			requestCal = false;
 			startAlign(true);
@@ -1103,7 +1149,7 @@ CommandStatus MotorXDrive::command(const ParsedCommand& cmd, std::vector<Command
 
 	case XDrive_commands::vbus:
 		if(cmd.type == CMDtype::get){
-			replies.emplace_back((int32_t)(vbus * 1000.0f));
+			replies.emplace_back((int32_t)((float)ADC1_BUF[0] * VBUS_SCALE * 1000.0f)); // works without the ISR
 		}else{
 			return CommandStatus::ERR;
 		}
@@ -1166,6 +1212,27 @@ CommandStatus MotorXDrive::command(const ParsedCommand& cmd, std::vector<Command
 		}else{
 			return CommandStatus::ERR;
 		}
+		break;
+
+	case XDrive_commands::isrcount:
+		if(cmd.type != CMDtype::get) return CommandStatus::ERR;
+		replies.emplace_back(isrCount);
+		break;
+
+	case XDrive_commands::trigger:
+		if(cmd.type != CMDtype::get) return CommandStatus::ERR;
+		replies.emplace_back(softTrigger ? 1 : 0);
+		break;
+
+	case XDrive_commands::dbg:
+		if(cmd.type != CMDtype::get) return CommandStatus::ERR;
+		replies.emplace_back(TIM1->CR1);
+		replies.emplace_back(TIM1->CNT);
+		replies.emplace_back(TIM1->CCER);
+		replies.emplace_back(TIM1->BDTR);
+		replies.emplace_back(ADC2->CR2);
+		replies.emplace_back(ADC2->SR);
+		replies.emplace_back(ADC3->CR2);
 		break;
 
 	case XDrive_commands::calratio:

@@ -73,6 +73,11 @@ chwilę wyłączany – to celowe.
 | 512 | Brak kalibracji (informacja) | uruchom *Kalibrację* |
 | 1024 | Programowy limit prądu przekroczony | *Limit prądu*, pasmo regulatora |
 | 2048 | Autotest przerwany (pozycja odjechała > 90°) | coś blokuje kierownicę, za mały limit prądu |
+| 4096 | Brak przerwań pomiaru prądu (ani wyzwalanie z TIM1, ani programowe) | `xdrive.0.dbg?`, `xdrive.0.isrcount?` |
+
+Pomiar prądu jest wyzwalany sprzętowo (TIM1 TRGO = OC4REF → ADC2/ADC3). Jeśli w ciągu sekundy nie przyjdą
+przerwania, sterownik sam przełącza się na wyzwalanie programowe z przerwania TIM1 (`xdrive.0.trigger?` = 1).
+Stan „Pomiar offsetów” (1), który się nie kończy, oznaczał w starszych wersjach właśnie brak tych przerwań.
 
 ## Założenia do zweryfikowania na sprzęcie
 
@@ -90,7 +95,7 @@ chwilę wyłączany – to celowe.
 `poles`, `cpr`, `vlimit` (mV), `ilimit` (mA), `mode` (1 FOC / 0 napięciowy), `bw` (rad/s),
 `index` (0/1), `sensorDirection` (−1/1), `invert`, `cal`, `test`, oraz odczyty: `state`, `errors`,
 `vbus` (mV), `iq` (mA), `res` (0,1 mΩ), `ind` (µH), `offset`, `brake` (%), `center`,
-`indexfound`, `calratio` (‰), `drvstatus`.
+`indexfound`, `calratio` (‰), `drvstatus`, diagnostyka: `isrcount`, `trigger`, `dbg`.
 
 ## Symulacja na PC
 

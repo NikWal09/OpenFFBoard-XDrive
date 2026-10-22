@@ -7,7 +7,7 @@
 #include <cstdint>
 #include <cstddef>
 
-struct TIM_TypeDef { volatile uint32_t CR1, CCER, BDTR, CCR1, CCR2, CCR3, CCR4, ARR, CNT; };
+struct TIM_TypeDef { volatile uint32_t CR1, CCER, BDTR, CCR1, CCR2, CCR3, CCR4, ARR, CNT, RCR, DIER, SR; };
 struct ADC_TypeDef { volatile uint32_t SR, CR1, CR2, JDR1; };
 struct GPIO_TypeDef { volatile uint32_t IDR, ODR, BSRR; };
 
@@ -26,6 +26,12 @@ extern GPIO_TypeDef sim_gpiob, sim_gpioc, sim_gpiod;
 #define GPIOD (&sim_gpiod)
 
 #define TIM_CR1_CEN   (1u << 0)
+#define TIM_CR1_DIR   (1u << 4)
+#define TIM_SR_UIF    (1u << 0)
+#define TIM_DIER_UIE  (1u << 0)
+#define ADC_CR2_JEXTEN   (3u << 20)
+#define ADC_CR2_JSWSTART (1u << 22)
+#define TIM1_UP_TIM10_IRQn 25
 #define TIM_BDTR_MOE  (1u << 15)
 #define TIM_CCER_CC1E  (1u << 0)
 #define TIM_CCER_CC1NE (1u << 2)

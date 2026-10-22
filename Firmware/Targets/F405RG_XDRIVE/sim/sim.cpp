@@ -31,7 +31,8 @@ extern "C" { volatile uint8_t adc1Overrun = 0; }
 
 // Command ids: order of MotorXDrive::XDrive_commands
 enum Cmd : uint32_t { poles, cpr, vlimit, ilimit, sensorDirection, invert, offset, cal, test, mode, index_,
-	state, errors, vbus, iq, res, ind, bw, drvstatus, brake, center, indexfound, calratio };
+	state, errors, vbus, iq, res, ind, bw, drvstatus, brake, center, indexfound, calratio,
+	isrcount, trigger, dbg };
 
 static constexpr double PI2 = 6.283185307179586;
 static constexpr int CPR = 4096;
@@ -55,6 +56,8 @@ struct Plant {
 	double deadV = 0.23;      // bridge dead time voltage error (2*td*f*Vbus, td ~300ns)
 	double iPrevBoard[3] = {0, 0, 0};
 	bool brakeOverlap = false; // AUX_L and AUX_H on at the same time (must never happen)
+	bool hwTrigger = true;     // TIM1 -> ADC injected hardware trigger works
+	bool swTrigger = true;     // JSWSTART works
 	// encoder counter (TIM3 restarts at 0 on MCU reset)
 	double bootThm = 0;
 	std::mt19937 rng{1234};
@@ -63,6 +66,8 @@ struct Plant {
 
 static uint64_t simTicks = 0;
 static bool adcIrqOn = false;
+static bool tim1UpIrqOn = false;
+extern "C" void XDrive_Tim1Update(void);
 static std::function<void()> onMs;           // scenario hook, every simulated ms
 static std::map<uint16_t, uint16_t> flash;
 static uint16_t drvRegs[4];
@@ -97,7 +102,7 @@ int HAL_ADCEx_InjectedStart_IT(ADC_HandleTypeDef*){ return 0; }
 int HAL_ADC_Stop_DMA(ADC_HandleTypeDef*){ return 0; }
 int HAL_ADC_Start_DMA(ADC_HandleTypeDef*, uint32_t*, uint32_t){ return 0; }
 void HAL_NVIC_SetPriority(IRQn_Type, uint32_t, uint32_t){}
-void HAL_NVIC_EnableIRQ(IRQn_Type irq){ if(irq == ADC_IRQn) adcIrqOn = true; }
+void HAL_NVIC_EnableIRQ(IRQn_Type irq){ if(irq == ADC_IRQn) adcIrqOn = true; if(irq == TIM1_UP_TIM10_IRQn) tim1UpIrqOn = true; }
 void HAL_NVIC_DisableIRQ(IRQn_Type irq){ if(irq == ADC_IRQn) adcIrqOn = false; }
 bool Flash_Write(uint16_t adr, uint16_t dat){ flash[adr] = dat; return true; }
 bool Flash_Read(uint16_t adr, uint16_t* buf){
@@ -168,8 +173,18 @@ static void plantTick(){
 	ADC2->JDR1 = P.adcSwap ? adcPhC : adcPhB;
 	ADC3->JDR1 = P.adcSwap ? adcPhB : adcPhC;
 	ADC1_BUF[0] = (uint32_t)std::lround(P.vbus / 19.0 / 3.3 * 4096.0);
-	ADC2->SR |= ADC_SR_JEOC;
-	if(adcIrqOn && MotorXDrive::instance) MotorXDrive::instance->isr();
+	// conversion trigger: hardware (TRGO) or the software fallback from the TIM1 update IRQ
+	bool converted = P.hwTrigger && (ADC2->CR2 & ADC_CR2_JEXTEN || true) && !(MotorXDrive::instance && MotorXDrive::instance->softTrigger);
+	if(MotorXDrive::instance && MotorXDrive::instance->softTrigger && tim1UpIrqOn && (TIM1->DIER & TIM_DIER_UIE)){
+		TIM1->CR1 |= TIM_CR1_DIR; // update after the peak: counting down
+		XDrive_Tim1Update();
+		converted = P.swTrigger && (ADC2->CR2 & ADC_CR2_JSWSTART);
+		ADC2->CR2 &= ~ADC_CR2_JSWSTART; ADC3->CR2 &= ~ADC_CR2_JSWSTART;
+	}
+	if(converted){
+		ADC2->SR |= ADC_SR_JEOC;
+		if(adcIrqOn && MotorXDrive::instance) MotorXDrive::instance->isr();
+	}
 	double indexNow = std::floor((P.thm - P.indexAngle) / PI2);
 	if(indexNow != indexPrev && MotorXDrive::instance) MotorXDrive::instance->exti(ENCODER_Z_Pin);
 }
@@ -220,7 +235,7 @@ static void powerUp(double thm){
 	sim_tim1 = {}; sim_tim2 = {}; sim_tim3 = {};
 	sim_gpiod.IDR = DRV_NFAULT_Pin; // nFAULT high = ok
 	sim_tim2.ARR = 2100;
-	adcIrqOn = false; enGate = false;
+	adcIrqOn = false; tim1UpIrqOn = false; enGate = false;
 	drv = new MotorXDrive();
 	drv->startMotor(); // the axis does this right after creating the driver
 }
@@ -451,6 +466,31 @@ static void testBrakeAndFaults(){
 	powerDown();
 }
 
+static void testAdcTrigger(){
+	printf("  hardware ADC trigger dead -> software fallback, then both dead -> error\n");
+	plant = Plant{}; plant.hwTrigger = false; flash.clear(); errorsReported = 0;
+	powerUp(0.3);
+	runDriver([](double t){ return t > 3.0; }, 4);
+	check(get(trigger) == 1, "switched to software trigger", get(trigger), 1);
+	check(get(state) == 2, "idle after fallback", get(state), 2);
+	check(get(isrcount) > 20000, "current loop running", get(isrcount), 20000);
+	exec(cal);
+	runDriver([](double t){ int64_t s = get(state); return t > 0.1 && (s == 5 || s == 7); }, 25);
+	check(get(state) == 5, "calibration with software trigger", get(state), 5);
+	int32_t p0 = drv->getPos();
+	drv->turn(6000);
+	runDriver([](double t){ return t > 0.3; }, 1);
+	drv->turn(0);
+	check(drv->getPos() - p0 > 150, "torque with software trigger", drv->getPos() - p0, 150);
+	powerDown();
+
+	plant = Plant{}; plant.hwTrigger = false; plant.swTrigger = false; flash.clear(); errorsReported = 0;
+	powerUp(0.3);
+	runDriver([](double t){ return t > 4.0; }, 5);
+	check(get(state) == 7 && (get(errors) & XDriveError::noCurrentIsr), "no interrupts -> error 4096", get(errors), 4096);
+	powerDown();
+}
+
 int main(){
 	printf("MotorXDrive host simulation\n");
 	uint32_t seed = 1;
@@ -465,6 +505,7 @@ int main(){
 	testWrongPoles();
 	testPowerSequence();
 	testBrakeAndFaults();
+	testAdcTrigger();
 	printf(failures ? "\n%d check(s) FAILED\n" : "\nall checks passed\n", failures);
 	return failures ? 1 : 0;
 }

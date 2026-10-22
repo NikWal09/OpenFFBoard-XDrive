@@ -25,6 +25,8 @@ void DMA2_Stream4_IRQHandler(void);
 void OTG_FS_IRQHandler(void);
 
 void XDrive_AdcIsr(void);
+void XDrive_Tim1Update(void);
+void TIM1_UP_TIM10_IRQHandler(void);
 
 #ifdef __cplusplus
 }

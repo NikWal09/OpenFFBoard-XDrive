@@ -26,6 +26,10 @@
 #define DEFAULT_DRVTYPE 13 // MotorXDrive, see MotorDriver::all_drivers
 #define FORCE_DEFAULT_DRVTYPE // drvtype None/invalid in flash -> MotorXDrive (only driver on this board)
 
+// Endstop at full ilimit regardless of axis.power, with damping (see Axis::updateTorque)
+#define ENDSTOP_FULL_TORQUE
+#define ENDSTOP_DAMPING 0.5f // per deg/s and esgain step: esgain 127 -> full torque at ~500 deg/s
+
 //----------------------
 #define TIM_PWM htim1 // 3 phase bridge, used directly by MotorXDrive
 #define TIM_ENC htim3 // MT6701 ABZ

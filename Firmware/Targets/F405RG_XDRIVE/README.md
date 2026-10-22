@@ -52,6 +52,12 @@ Na każdym kroku sprawdzaj *Baza i silnik → Diagnostyka XDrive* w DD Control (
 | 9 | Ustaw kierownicę prosto → *Wycentruj* → *Zapisz w bazie* | Pozycja = 0°. Po następnym włączeniu środek wróci po minięciu impulsu Z (włączaj w zakresie ±180° od środka). |
 | 10 | Stopniowo zwiększaj *Limit prądu* (5 → 8 → 10 A) i *Moc* | Zasilacz 12,3 A; prąd fazy może być wyższy od prądu z zasilacza. |
 
+**Blokada końca zakresu** (`axis.degrees`) w tym targecie zawsze używa pełnego *Limitu prądu*,
+niezależnie od *Mocy* (`ENDSTOP_FULL_TORQUE` w `target_constants.h`), i ma tłumienie, które usuwa
+odbijanie (`ENDSTOP_DAMPING`). *Sztywność blokady* (`axis.esgain`) ustala, po ilu stopniach siła
+osiąga maksimum: 127 ≈ 10°, 255 ≈ 5°. Przy *Limicie prądu* 3 A blokadę da się przełamać ręką,
+twarda blokada wymaga ok. 10–15 A.
+
 Po każdej udanej zmianie: *Zapisz w bazie* (`sys.save`). Na czas zapisu do flash mostek jest na
 chwilę wyłączany – to celowe.
 

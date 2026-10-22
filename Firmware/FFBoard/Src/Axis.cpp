@@ -720,6 +720,14 @@ int16_t Axis::updateEndstop(){
 	}
 	float addtorque = clipdir*metric.current.posDegrees - (float)this->degreesOfRotation/2.0; // degress of rotation counts total range so multiply by 2
 	addtorque *= (float)endstopStrength * endstopGain; // Apply endstop gain for stiffness.
+#ifdef ENDSTOP_DAMPING
+	// Damping beyond the endstop removes the bounce so a stiff endstop feels like a wall.
+	// Never below 0: the endstop must not pull the wheel further out of the range.
+	addtorque += clipdir * metric.current.speed * (float)endstopStrength * ENDSTOP_DAMPING;
+	if(addtorque < 0){
+		addtorque = 0;
+	}
+#endif
 	addtorque *= -clipdir;
 
 	return clip<int32_t,int32_t>(addtorque,-0x7fff,0x7fff);
@@ -746,7 +754,9 @@ bool Axis::updateTorque(int32_t* totalTorque) {
 	}
 	torque *= effect_margin_scaler;
 	torque += axisEffectTorque; // Independent effects
+#ifndef ENDSTOP_FULL_TORQUE
 	torque += updateEndstop();
+#endif
 	torque *= torqueScaler; // Scale to power
 
 
@@ -774,6 +784,14 @@ bool Axis::updateTorque(int32_t* totalTorque) {
 
 		torque -= torqueReduction;
 	}
+#ifdef ENDSTOP_FULL_TORQUE
+	// Endstop uses the full driver torque, independent of the power setting.
+	// Effects stay limited to power, so a low power setting does not make the endstop soft.
+	const int32_t torqueLimit = 0x7fff;
+	torque = clip<int32_t, int32_t>(torque, -power, power) + updateEndstop();
+#else
+	const int32_t torqueLimit = power;
+#endif
 	// Torque slew rate limiter
 	if(maxTorqueRateMS > 0){
 		torque = clip<int32_t,int32_t>(torque, metric.previous.torque - maxTorqueRateMS,metric.previous.torque + maxTorqueRateMS);
@@ -792,7 +810,7 @@ bool Axis::updateTorque(int32_t* totalTorque) {
 	// Torque calculated. Now sending to driver
 	torque = (invertAxis) ? -torque : torque;
 	metric.current.torque = torque;
-	torque = clip<int32_t, int32_t>(torque, -power, power);
+	torque = clip<int32_t, int32_t>(torque, -torqueLimit, torqueLimit);
 
 	bool torqueChanged = metric.current.torque != metric.previous.torque;
 

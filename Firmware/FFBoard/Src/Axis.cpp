@@ -175,6 +175,13 @@ void Axis::restoreFlash(){
 		pulseErrLed();
 	}
 
+#ifdef FORCE_DEFAULT_DRVTYPE
+	// Boards with a single onboard motor driver: "None" or an unknown id (e.g. left over in the
+	// emulated EEPROM from another firmware) falls back to the onboard driver
+	if(this->conf.drvtype == 0 || !drv_chooser.isValidClassId(this->conf.drvtype)){
+		this->conf.drvtype = DEFAULT_DRVTYPE;
+	}
+#endif
 	setDrvType(this->conf.drvtype);
 	setEncType(this->conf.enctype);
 

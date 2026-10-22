@@ -24,6 +24,7 @@
 // Motor driver of this board
 #define XDRIVEDRIVER
 #define DEFAULT_DRVTYPE 13 // MotorXDrive, see MotorDriver::all_drivers
+#define FORCE_DEFAULT_DRVTYPE // drvtype None/invalid in flash -> MotorXDrive (only driver on this board)
 
 //----------------------
 #define TIM_PWM htim1 // 3 phase bridge, used directly by MotorXDrive

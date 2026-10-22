@@ -24,7 +24,7 @@ jobs:
     strategy:
         fail-fast: false
         matrix:
-          target: ['F411RE', 'F407VG','F407VG_DISCO','F405RG_XDRIVE'] # Targets to build
+          target: ['F405RG_XDRIVE'] # tylko MKS XDrive Mini # Targets to build
 
     # The type of runner that the job will run on
     runs-on: ubuntu-latest

@@ -1,8 +1,12 @@
 # OpenFFBoard na MKS XDrive Mini V1.0 (target `F405RG_XDRIVE`)
 
 Kierownica Direct Drive: płytka MKS XDrive Mini (STM32F405RGT6 + DRV8301), silnik z hoverboardu
-(15 par biegunów), enkoder MT6701 w trybie ABZ (4096 CPR) z indeksem Z, zasilacz Dell 19,5 V / 240 W,
-rezystor hamujący na złączu AUX.
+(15 par biegunów), enkoder MT6701 w trybie ABZ (4096 CPR) z indeksem Z, zasilacz 24 V (wcześniej
+Dell 19,5 V / 240 W), rezystor hamujący na złączu AUX.
+
+Obsługiwane zasilacze 12–30 V. Napięcie jest mierzone po włączeniu zasilacza (`xdrive.vsupply`) i od
+niego liczą się progi: rezystor hamujący włącza się 1,5 V powyżej (wyłącza 0,8 V powyżej), błąd
+nadnapięcia 4 V powyżej (najwyżej 34 V). Zasilacz powyżej 30 V – błąd 8, mostek zostaje wyłączony.
 
 Target uruchamia OpenFFBoard jako **FFB Wheel (1 oś)** z własnym sterownikiem silnika
 **`MotorXDrive`** (`FFBoard/UserExtensions/Src/MotorXDrive.cpp`): prądowe FOC 20 kHz,
@@ -76,9 +80,9 @@ chwilę wyłączany – to celowe.
 | 1 | DRV8301 nFAULT (nadprąd, przegrzanie, za niskie napięcie bramek) | `xdrive.0.drvstatus?`, zwarcia faz, limit prądu |
 | 2 | DRV8301 nie odpowiada po SPI | lutowania, zasilanie z zasilacza (DRV jest zasilany z szyny) |
 | 4 | Offsety wzmacniaczy prądu poza zakresem | wzmacniacze DRV8301, VREF |
-| 8 | Nadnapięcie > 25 V | rezystor hamujący, zasilacz |
+| 8 | Nadnapięcie: > zasilacz + 4 V albo zasilacz > 30 V | rezystor hamujący, zasilacz |
 | 16 | Napięcie < 10 V (nie blokuje, tylko brak momentu) | zasilacz |
-| 32 | Rezystor hamujący włączony > 5 s | czy rezystor jest podłączony, wartość ok. 2–10 Ω |
+| 32 | Rezystor hamujący włączony > 5 s | czy rezystor jest podłączony, wartość ok. 2–10 Ω; firmware sprzed 2026102302 miał próg 21 V na sztywno (przy zasilaczu 24 V błąd zaraz po starcie) |
 | 64 | Kalibracja nie osiągnęła prądu | przewody faz, *Limit napięcia* za niski |
 | 128 | Ruch enkodera niezgodny z biegunami/CPR | *Pary biegunów* (15), *CPR* (4096), mocowanie magnesu |
 | 256 | Rezystancja poza zakresem 5 mΩ–5 Ω | przewody faz |

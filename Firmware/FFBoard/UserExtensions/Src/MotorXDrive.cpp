@@ -34,9 +34,11 @@ static constexpr float AMP_GAIN = 40.0f;            // DRV8301 CR2 GAIN = 40 V/V
 static constexpr float ADC_TO_AMP = 3.3f / 4096.0f / (AMP_GAIN * SHUNT_OHM);
 static constexpr float VBUS_SCALE = 3.3f / 4096.0f * 19.0f; // 18k/1k divider
 static constexpr float VBUS_MIN = 10.0f;            // below: no torque
-static constexpr float VBUS_MAX = 25.0f;            // above: overvoltage fault (19.5V supply)
-static constexpr float BRAKE_ON_V = 21.0f;          // brake resistor on above
-static constexpr float BRAKE_OFF_V = 20.2f;         // and off below
+static constexpr float VBUS_SUPPLY_MAX = 30.0f;     // supported supplies: 12..30 V (19.5 V and 24 V tested)
+static constexpr float VBUS_ABS_MAX = 34.0f;        // overvoltage fault regardless of the supply
+static constexpr float OVERVOLTAGE_DV = 4.0f;       // overvoltage fault above supply + 4 V
+static constexpr float BRAKE_ON_DV = 1.5f;          // brake resistor on above supply + 1.5 V
+static constexpr float BRAKE_OFF_DV = 0.8f;         // and off below supply + 0.8 V
 static constexpr uint32_t BRAKE_DEADTIME = 42;      // TIM2 ticks @84MHz = 0.5us gap between AUX_L and AUX_H
 static constexpr uint32_t BRAKE_MAX_TICKS = 5 * 20000; // 5 s continuous braking = fault
 static constexpr float MAX_DUTY = 0.92f;            // keeps the low side on long enough to sample current
@@ -181,6 +183,7 @@ void MotorXDrive::registerCommands(){
 	registerCommand("trigger", XDrive_commands::trigger, "ADC trigger: 0 TIM1 TRGO, 1 software fallback", CMDFLAG_GET);
 	registerCommand("dbg", XDrive_commands::dbg, "Registers: TIM1 CR1 CNT CCER BDTR, ADC2 CR2 SR, ADC3 CR2", CMDFLAG_GET);
 	registerCommand("fwrev", XDrive_commands::fwrev, "MotorXDrive firmware revision", CMDFLAG_GET);
+	registerCommand("vsupply", XDrive_commands::vsupply, "Supply voltage measured at power up (mV), brake/overvoltage reference", CMDFLAG_GET);
 }
 
 // ---- flash ------------------------------------------------------------------------------
@@ -351,11 +354,12 @@ int32_t MotorXDrive::rawSnapshot(){
 
 // ---- brake resistor --------------------------------------------------------------------
 void MotorXDrive::updateBrake(){
-	if(errors & XDriveError::brakeTimeout){
+	const float brakeOff = vSupply + BRAKE_OFF_DV;
+	if((errors & XDriveError::brakeTimeout) || vSupply < VBUS_MIN){ // no thresholds before the supply is measured
 		braking = false;
-	}else if(!braking && vbus > BRAKE_ON_V){
+	}else if(!braking && vbus > vSupply + BRAKE_ON_DV){
 		braking = true;
-	}else if(braking && vbus < BRAKE_OFF_V){
+	}else if(braking && vbus < brakeOff){
 		braking = false;
 	}
 	if(braking){
@@ -363,7 +367,7 @@ void MotorXDrive::updateBrake(){
 			braking = false;
 			enterFault(XDriveError::brakeTimeout);
 		}
-		brakeDuty = fminf(fmaxf((vbus - BRAKE_OFF_V) / 1.5f, 0.05f), 0.9f);
+		brakeDuty = fminf(fmaxf((vbus - brakeOff) / 1.5f, 0.05f), 0.9f);
 	}else{
 		brakeOnTicks = 0;
 		brakeDuty = 0;
@@ -454,7 +458,8 @@ void MotorXDrive::isr(){
 	float ibeta = (ib - ic) * 0.57735027f;
 
 	// --- protections ---
-	if(vbus > VBUS_MAX && state != XDriveState::Fault){
+	const float vbusMax = vSupply > VBUS_MIN ? fminf(vSupply + OVERVOLTAGE_DV, VBUS_ABS_MAX) : VBUS_ABS_MAX;
+	if(vbus > vbusMax && state != XDriveState::Fault){
 		enterFault(XDriveError::overvoltage);
 	}
 	if(state != XDriveState::Init && state != XDriveState::Fault && vbus > VBUS_MIN
@@ -842,6 +847,7 @@ void MotorXDrive::Run(){
 		// and again after the supply was off (its registers reset on undervoltage).
 		if(gateReady && vbusNow < VBUS_MIN - 1.0f){
 			gateReady = false;
+			vSupply = 0; // measured again when the supply returns
 			bridgeDisable();
 			if(state != XDriveState::Fault){
 				state = XDriveState::Init;
@@ -850,6 +856,11 @@ void MotorXDrive::Run(){
 		if(!gateReady){
 			if(vbusNow > VBUS_MIN + 1.0f && state != XDriveState::Fault){
 				Delay(200); // let the supply settle
+				vSupply = vbus;
+				if(vSupply > VBUS_SUPPLY_MAX){
+					enterFault(XDriveError::overvoltage);
+					continue;
+				}
 				setupGateDriver();
 				if(state != XDriveState::Fault){
 					gateReady = true;
@@ -1011,10 +1022,12 @@ CommandStatus MotorXDrive::command(const ParsedCommand& cmd, std::vector<Command
 		if(cmd.type == CMDtype::get){
 			replies.emplace_back(poles);
 		}else if(cmd.type == CMDtype::set && cmd.val >= 1 && cmd.val <= 64){
-			poles = cmd.val;
-			calibrated = false; // calibration is only valid for the pole count it was made with
-			aligned = false;
-			if(state == XDriveState::Running || state == XDriveState::Test) state = XDriveState::Idle;
+			if(cmd.val != poles){ // writing the same value must not drop the calibration
+				poles = cmd.val;
+				calibrated = false; // calibration is only valid for the pole count it was made with
+				aligned = false;
+				if(state == XDriveState::Running || state == XDriveState::Test) state = XDriveState::Idle;
+			}
 		}else{
 			return CommandStatus::ERR;
 		}
@@ -1024,10 +1037,12 @@ CommandStatus MotorXDrive::command(const ParsedCommand& cmd, std::vector<Command
 		if(cmd.type == CMDtype::get){
 			replies.emplace_back(cpr);
 		}else if(cmd.type == CMDtype::set && cmd.val >= 64 && cmd.val <= 65535){
-			cpr = cmd.val;
-			calibrated = false;
-			aligned = false;
-			if(state == XDriveState::Running || state == XDriveState::Test) state = XDriveState::Idle;
+			if(cmd.val != cpr){
+				cpr = cmd.val;
+				calibrated = false;
+				aligned = false;
+				if(state == XDriveState::Running || state == XDriveState::Test) state = XDriveState::Idle;
+			}
 		}else{
 			return CommandStatus::ERR;
 		}
@@ -1234,6 +1249,14 @@ CommandStatus MotorXDrive::command(const ParsedCommand& cmd, std::vector<Command
 		replies.emplace_back(ADC2->CR2);
 		replies.emplace_back(ADC2->SR);
 		replies.emplace_back(ADC3->CR2);
+		break;
+
+	case XDrive_commands::vsupply:
+		if(cmd.type == CMDtype::get){
+			replies.emplace_back((int32_t)(vSupply * 1000.0f));
+		}else{
+			return CommandStatus::ERR;
+		}
 		break;
 
 	case XDrive_commands::fwrev:

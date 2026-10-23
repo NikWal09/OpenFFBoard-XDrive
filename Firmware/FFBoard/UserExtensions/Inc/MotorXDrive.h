@@ -33,7 +33,7 @@
 
 #define XDRIVE_THREAD_MEM 384
 #define XDRIVE_THREAD_PRIO 25
-#define XDRIVE_FW_REV 20261023 // xdrive.fwrev: date of the last behaviour change, lets the app show what is flashed
+#define XDRIVE_FW_REV 2026102302 // xdrive.fwrev: YYYYMMDDnn of the last behaviour change, lets the app show what is flashed
 
 enum class XDriveState : uint8_t {
 	Init = 0,       // waiting for the gate driver setup
@@ -74,7 +74,7 @@ class MotorXDrive : public MotorDriver, public Encoder, public PersistentStorage
 	enum class XDrive_commands : uint32_t {
 		poles, cpr, vlimit, ilimit, sensorDirection, invert, offset, cal, test, mode, index,
 		state, errors, vbus, iq, res, ind, bw, drvstatus, brake, center, indexfound, calratio,
-		isrcount, trigger, dbg, fwrev
+		isrcount, trigger, dbg, fwrev, vsupply
 	};
 public:
 	MotorXDrive();
@@ -190,6 +190,7 @@ private:
 	volatile float velocity = 0; // counts/s, filtered
 	volatile float iqMeas = 0;  // A, filtered
 	volatile float brakeDuty = 0;
+	volatile float vSupply = 0; // supply voltage measured when it came on; brake and overvoltage thresholds follow it
 	bool braking = false;
 	uint32_t brakeOnTicks = 0;
 	uint16_t drvStatus1 = 0, drvStatus2 = 0;

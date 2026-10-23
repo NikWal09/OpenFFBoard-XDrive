@@ -32,7 +32,7 @@ extern "C" { volatile uint8_t adc1Overrun = 0; }
 // Command ids: order of MotorXDrive::XDrive_commands
 enum Cmd : uint32_t { poles, cpr, vlimit, ilimit, sensorDirection, invert, offset, cal, test, mode, index_,
 	state, errors, vbus, iq, res, ind, bw, drvstatus, brake, center, indexfound, calratio,
-	isrcount, trigger, dbg };
+	isrcount, trigger, dbg, fwrev, vsupply };
 
 static constexpr double PI2 = 6.283185307179586;
 static constexpr int CPR = 4096;
@@ -466,6 +466,38 @@ static void testBrakeAndFaults(){
 	powerDown();
 }
 
+static void testSupply24V(){
+	printf("  24 V supply: brake and overvoltage follow the measured supply, same pole count keeps calibration\n");
+	plant = Plant{}; plant.vbus = 24.0; flash.clear(); errorsReported = 0;
+	calibrateFresh();
+	check(get(state) == 5, "calibrated at 24 V", get(state), 5);
+	check(std::llabs(get(vsupply) - 24000) < 300, "supply measured", get(vsupply), 24000);
+	runDriver([](double t){ return t > 6.0; }, 7);
+	check(get(brake) == 0, "brake stays off at 24 V", get(brake), 0);
+	check(!(get(errors) & XDriveError::latched), "no error at 24 V after 6 s", get(errors), 0);
+	setCmd(poles, 15); // the app may write back the unchanged value
+	setCmd(cpr, 4096);
+	runDriver([](double t){ return t > 0.1; }, 1);
+	check(!(get(errors) & XDriveError::notCalibrated) && get(state) == 5, "same poles/cpr keep calibration", get(errors), 0);
+	plant.vbus = 25.8;
+	runDriver([](double t){ return t > 0.05; }, 1);
+	check(get(brake) > 0, "brake on above supply + 1.5 V", get(brake), 0);
+	plant.vbus = 24.5;
+	runDriver([](double t){ return t > 0.05; }, 1);
+	check(get(brake) == 0, "brake off below supply + 0.8 V", get(brake), 0);
+	plant.vbus = 28.5;
+	runDriver([](double t){ return t > 0.05; }, 1);
+	check(get(state) == 7 && (get(errors) & XDriveError::overvoltage), "overvoltage above supply + 4 V", get(errors), 8);
+	powerDown();
+
+	plant = Plant{}; plant.vbus = 36.0; flash.clear(); errorsReported = 0;
+	powerUp(0.3);
+	runDriver([](double t){ return t > 1.0; }, 2);
+	check(get(state) == 7 && (get(errors) & XDriveError::overvoltage), "unsupported 36 V supply rejected", get(errors), 8);
+	check(!(TIM1->BDTR & TIM_BDTR_MOE), "bridge off with 36 V supply");
+	powerDown();
+}
+
 static void testAdcTrigger(){
 	printf("  hardware ADC trigger dead -> software fallback, then both dead -> error\n");
 	plant = Plant{}; plant.hwTrigger = false; flash.clear(); errorsReported = 0;
@@ -506,6 +538,7 @@ int main(){
 	testPowerSequence();
 	testBrakeAndFaults();
 	testAdcTrigger();
+	testSupply24V();
 	printf(failures ? "\n%d check(s) FAILED\n" : "\nall checks passed\n", failures);
 	return failures ? 1 : 0;
 }

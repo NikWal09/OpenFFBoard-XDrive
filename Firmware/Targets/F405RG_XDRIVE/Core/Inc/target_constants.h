@@ -28,7 +28,8 @@
 
 // Endstop at full ilimit regardless of axis.power, with damping (see Axis::updateTorque)
 #define ENDSTOP_FULL_TORQUE
-#define ENDSTOP_DAMPING 0.5f // per deg/s and esgain step: esgain 127 -> full torque at ~500 deg/s
+#define ENDSTOP_GAIN 50 // upstream 25. Full torque at esgain 127: ~5 deg past the stop, esgain 255: ~2.6 deg
+#define ENDSTOP_DAMPING 0.7f // per deg/s and esgain step
 
 //----------------------
 #define TIM_PWM htim1 // 3 phase bridge, used directly by MotorXDrive

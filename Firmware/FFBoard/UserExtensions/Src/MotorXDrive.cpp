@@ -180,6 +180,7 @@ void MotorXDrive::registerCommands(){
 	registerCommand("isrcount", XDrive_commands::isrcount, "Current loop interrupts since power up", CMDFLAG_GET);
 	registerCommand("trigger", XDrive_commands::trigger, "ADC trigger: 0 TIM1 TRGO, 1 software fallback", CMDFLAG_GET);
 	registerCommand("dbg", XDrive_commands::dbg, "Registers: TIM1 CR1 CNT CCER BDTR, ADC2 CR2 SR, ADC3 CR2", CMDFLAG_GET);
+	registerCommand("fwrev", XDrive_commands::fwrev, "MotorXDrive firmware revision", CMDFLAG_GET);
 }
 
 // ---- flash ------------------------------------------------------------------------------
@@ -516,7 +517,7 @@ void MotorXDrive::runCurrentLoop(float iqTarget, float theta, float ialpha, floa
 	float id = ialpha * c + ibeta * s;
 	float iq = -ialpha * s + ibeta * c;
 	iqMeas = iqMeas + 0.02f * (iq - iqMeas);
-	float vmax = fminf(vlimit_mV * 0.001f, 0.45f * vbus);
+	float vmax = fminf(vlimit_mV * 0.001f, 0.5f * vbus); // SVPWM linear range: 0.92 * vbus / sqrt(3)
 	float imax = ilimit_mA * 0.001f;
 	iqTarget = fminf(fmaxf(iqTarget, -imax), imax);
 
@@ -1233,6 +1234,14 @@ CommandStatus MotorXDrive::command(const ParsedCommand& cmd, std::vector<Command
 		replies.emplace_back(ADC2->CR2);
 		replies.emplace_back(ADC2->SR);
 		replies.emplace_back(ADC3->CR2);
+		break;
+
+	case XDrive_commands::fwrev:
+		if(cmd.type == CMDtype::get){
+			replies.emplace_back(XDRIVE_FW_REV);
+		}else{
+			return CommandStatus::ERR;
+		}
 		break;
 
 	case XDrive_commands::calratio:

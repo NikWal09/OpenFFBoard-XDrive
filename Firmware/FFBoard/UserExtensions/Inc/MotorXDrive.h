@@ -33,6 +33,7 @@
 
 #define XDRIVE_THREAD_MEM 384
 #define XDRIVE_THREAD_PRIO 25
+#define XDRIVE_FW_REV 20261023 // xdrive.fwrev: date of the last behaviour change, lets the app show what is flashed
 
 enum class XDriveState : uint8_t {
 	Init = 0,       // waiting for the gate driver setup
@@ -73,7 +74,7 @@ class MotorXDrive : public MotorDriver, public Encoder, public PersistentStorage
 	enum class XDrive_commands : uint32_t {
 		poles, cpr, vlimit, ilimit, sensorDirection, invert, offset, cal, test, mode, index,
 		state, errors, vbus, iq, res, ind, bw, drvstatus, brake, center, indexfound, calratio,
-		isrcount, trigger, dbg
+		isrcount, trigger, dbg, fwrev
 	};
 public:
 	MotorXDrive();

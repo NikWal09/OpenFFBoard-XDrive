@@ -250,7 +250,11 @@ private:
 	float effect_margin_scaler = 0;
 	bool invertAxis = true; // By default most motors and encoders count up CCW while gamepads are counting up CW.
 	uint8_t endstopStrength = 127; // Sets how much extra torque per count above endstop is added. High = stiff endstop. Low = softer
+#ifdef ENDSTOP_GAIN
+	const float endstopGain = ENDSTOP_GAIN;
+#else
 	const float endstopGain = 25; // Overall max endstop intensity
+#endif
 
 
 	uint8_t idlespringstrength = 127;

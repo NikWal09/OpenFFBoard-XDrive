@@ -50,13 +50,19 @@ Na każdym kroku sprawdzaj *Baza i silnik → Diagnostyka XDrive* w DD Control (
 | 7 | Moc 10%, *Sprężyna bezczynności* ~50%. Wychyl kierownicę ręką | Kierownica **wraca do środka**. Jeśli **odpycha od środka** – natychmiast odłącz zasilacz i zgłoś (błąd kierunku). |
 | 8 | *Test obrotu* (puść kierownicę) | +360°, −720°, +360°, powrót do zera, bez błędów. |
 | 9 | Ustaw kierownicę prosto → *Wycentruj* → *Zapisz w bazie* | Pozycja = 0°. Po następnym włączeniu środek wróci po minięciu impulsu Z (włączaj w zakresie ±180° od środka). |
-| 10 | Stopniowo zwiększaj *Limit prądu* (5 → 8 → 10 A) i *Moc* | Zasilacz 12,3 A; prąd fazy może być wyższy od prądu z zasilacza. |
+| 10 | *Limit napięcia* → 12000 mV, potem stopniowo zwiększaj *Limit prądu* (5 → 10 → 15 → 20 A) i *Moc* | Zasilacz 12,3 A; prąd fazy może być wyższy od prądu z zasilacza. |
 
 **Blokada końca zakresu** (`axis.degrees`) w tym targecie zawsze używa pełnego *Limitu prądu*,
 niezależnie od *Mocy* (`ENDSTOP_FULL_TORQUE` w `target_constants.h`), i ma tłumienie, które usuwa
-odbijanie (`ENDSTOP_DAMPING`). *Sztywność blokady* (`axis.esgain`) ustala, po ilu stopniach siła
-osiąga maksimum: 127 ≈ 10°, 255 ≈ 5°. Przy *Limicie prądu* 3 A blokadę da się przełamać ręką,
-twarda blokada wymaga ok. 10–15 A.
+odbijanie (`ENDSTOP_DAMPING`), a jest 2× sztywniejsza niż w upstream (`ENDSTOP_GAIN 50`).
+*Sztywność blokady* (`axis.esgain`) ustala, po ilu stopniach siła osiąga maksimum: 127 ≈ 5°,
+255 ≈ 2,6° (sztywniej zaczyna drgać – sprawdzone w symulacji z enkoderem 4096 CPR i pętlą 1 kHz).
+
+Maksymalna siła blokady to *Limit prądu* × stała momentu silnika (hoverboard ok. 0,5–0,6 Nm/A,
+czyli ok. 5 Nm przy 10 A i 10 Nm przy 20 A). Przy 3–5 A blokadę zawsze da się przełamać ręką.
+*Limit napięcia* z kroku 3 (4000 mV) po kalibracji podnieś do **12000 mV** – inaczej przy ruchu
+regulator nie da pełnego prądu. W *Diagnostyce* `xdrive.iq` pokazuje prąd: jeśli przy pchaniu
+w blokadę dochodzi do limitu, silnik daje już wszystko, co może.
 
 Po każdej udanej zmianie: *Zapisz w bazie* (`sys.save`). Na czas zapisu do flash mostek jest na
 chwilę wyłączany – to celowe.
@@ -101,7 +107,8 @@ Stan „Pomiar offsetów” (1), który się nie kończy, oznaczał w starszych 
 `poles`, `cpr`, `vlimit` (mV), `ilimit` (mA), `mode` (1 FOC / 0 napięciowy), `bw` (rad/s),
 `index` (0/1), `sensorDirection` (−1/1), `invert`, `cal`, `test`, oraz odczyty: `state`, `errors`,
 `vbus` (mV), `iq` (mA), `res` (0,1 mΩ), `ind` (µH), `offset`, `brake` (%), `center`,
-`indexfound`, `calratio` (‰), `drvstatus`, diagnostyka: `isrcount`, `trigger`, `dbg`.
+`indexfound`, `calratio` (‰), `drvstatus`, `fwrev` (data wersji sterownika, np. 20261023),
+diagnostyka: `isrcount`, `trigger`, `dbg`.
 
 ## Symulacja na PC
 
